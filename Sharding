@@ -1,0 +1,44 @@
+#include <iostream>
+#include <vector>
+#include <thread>
+#include <mutex>
+
+class Shard {
+public:
+    void processTransactions(const std::vector<int>& transactions) {
+        for (const auto& transaction : transactions) {
+            // Симуляция обработки транзакции
+            std::cout << "Processing transaction: " << transaction << " in shard." << std::endl;
+        }
+    }
+};
+
+void processShard(int shardId, const std::vector<int>& transactions) {
+    Shard shard;
+    std::cout << "Shard " << shardId << " is processing transactions." << std::endl;
+    shard.processTransactions(transactions);
+}
+
+int main() {
+    std::vector<int> transactions = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+    int numberOfShards = 3;
+    std::vector<std::thread> threads;
+
+    // Разделение транзакций по шарам
+    int transactionsPerShard = transactions.size() / numberOfShards;
+    for (int i = 0; i < numberOfShards; ++i) {
+        // Определяем границы для каждого шара
+        int start = i * transactionsPerShard;
+        int end = (i == numberOfShards - 1) ? transactions.size() : start + transactionsPerShard;
+
+        // Создаем вектор транзакций для текущего шара
+        std::vector<int> shardTransactions(transactions.begin() + start, transactions.begin() + end);
+        threads.emplace_back(processShard, i, shardTransactions);
+    }
+
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    return 0;
+}
