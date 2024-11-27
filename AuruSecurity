@@ -1,0 +1,96 @@
+#include <iostream>
+#include <vector>
+#include <thread>
+#include <mutex>
+#include <stdexcept>
+#include <string>
+#include <unordered_map>
+#include <functional>
+
+// Простейшая структура для хранения пользователей и их публичных ключей
+std::unordered_map<std::string, std::string> userKeys = {
+    {"authorized_user", "public_key_1"},
+    {"another_user", "public_key_2"}
+};
+
+class Shard {
+public:
+    void processTransactions(const std::vector<std::pair<int, std::string>>& transactions) {
+        for (const auto& transaction : transactions) {
+            int value = transaction.first;
+            const std::string& userKey = transaction.second;
+
+            // Проверка целостности транзакции (например, неотрицательное значение)
+            if (value < 0) {
+                throw std::invalid_argument("Invalid transaction detected: " + std::to_string(value));
+            }
+
+            // Проверка подписи транзакции
+            if (!verifySignature(userKey)) {
+                throw std::invalid_argument("Invalid signature for transaction: " + std::to_string(value));
+            }
+
+            // Симуляция обработки транзакции
+            std::cout << "Processing transaction: " << value << " from user with key: " << userKey << " in shard." << std::endl;
+        }
+    }
+
+private:
+    bool verifySignature(const std::string& userKey) {
+        // Простейшая проверка: в реальной системе это должно быть более надежно
+        return userKeys.find(userKey) != userKeys.end();
+    }
+};
+
+void processShard(int shardId, const std::vector<std::pair<int, std::string>>& transactions) {
+    Shard shard;
+    std::cout << "Shard " << shardId << " is processing transactions." << std::endl;
+    try {
+        shard.processTransactions(transactions);
+    } catch (const std::exception& e) {
+        std::cerr << "Error in shard " << shardId << ": " << e.what() << std::endl;
+    }
+}
+
+bool authenticateUser (const std::string& userId) {
+    // Простейшая аутентификация (в реальной системе это должно быть более надежно)
+    return userKeys.find(userId) != userKeys.end();
+}
+
+int main() {
+    std::string userId = "authorized_user"; // Замените на реальный ввод пользователя
+
+    if (!authenticateUser (userId)) {
+        std::cerr << "Unauthorized access attempt by user: " << userId << std::endl;
+        return 1; // Завершение программы при неудачной аутентификации
+    }
+
+    std::vector<std::pair<int, std::string>> transactions = {
+        {1, "public_key_1"},
+        {2, "public_key_1"},
+        {3, "public_key_2"},
+        {-4, "public_key_1"}, // Недопустимая транзакция для теста
+        {5, "invalid_key"}    // Недопустимая подпись для теста
+    };
+
+    int numberOfShards = 3;
+    std::vector<std::thread> threads;
+
+    // Разделение транзакций по шарам
+    int transactionsPerShard = transactions.size() / numberOfShards;
+    for (int i = 0; i < numberOfShards; ++i) {
+        // Определяем границы для каждого шара
+        int start = i * transactionsPerShard;
+        int end = (i == numberOfShards - 1) ? transactions.size() : start + transactionsPerShard;
+
+        // Создаем вектор транзакций для текущего шара
+        std::vector<std::pair<int, std::string>> shardTransactions(transactions.begin() + start, transactions.begin() + end);
+        threads.emplace_back(processShard, i, shardTransactions);
+    }
+
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    return 0;
+}
